@@ -13,4 +13,7 @@
 
 ## Configure kernel for TeslaMate CN instance
 -kernel sync_nodes_optional 'teslamate-cn'
--kernel sync_nodes_timeout 10000 
+-kernel sync_nodes_timeout 10000
+
+## Set node name for TeslaMate CN instance
+-name teslamate-cn
