@@ -20,7 +20,7 @@ defmodule TeslaMateWeb do
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt android-chrome-192x192.png
            android-chrome-512x512.png apple-touch-icon.png browserconfig.xml
            favicon-16x16.png favicon-32x32.png mstile-150x150.png
-           safari-pinned-tab.svg site.webmanifest)
+           safari-pinned-tab.svg site.webmanifest marker-icon.png marker-icon-2x.png marker-shadow.png layers.png layers-2x.png)
 
   def controller do
     quote do

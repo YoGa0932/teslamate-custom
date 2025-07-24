@@ -23,6 +23,16 @@
       disabled
     />
   </div>
+  <div class="card-footer">
+    <div class="card-footer-item">
+      <%= link("Open in Amap",
+        to: "https://uri.amap.com/marker?position=#{TeslaMate.Locations.Geocoder.wgs84_to_gcj02(@summary.longitude, @summary.latitude) |> elem(0) |> Float.round(6)},#{TeslaMate.Locations.Geocoder.wgs84_to_gcj02(@summary.longitude, @summary.latitude) |> elem(1) |> Float.round(6)}&name=Vehicle Location",
+        target: "_blank",
+        rel: "noopener noreferrer",
+        class: "button is-small is-link is-outlined"
+      ) %>
+    </div>
+  </div>
   <div class="card-content">
     <div class="media is-flex mb-5">
       <div class="media-content">
@@ -90,15 +100,6 @@
           >
             <span class="mdi mdi-power-plug"></span>
           </span>
-        <% end %>
-        <%= unless is_nil(@summary.latitude) or is_nil(@summary.longitude) do %>
-          <%= link to: "https://www.google.com/maps?q=#{@summary.latitude},#{@summary.longitude}",
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  class: "icon has-text-grey-dark has-tooltip-top has-tooltip-left-mobile",
-                  data: [tooltip: gettext("car location on Google Maps")] do %>
-            <span class="mdi mdi-map-marker"></span>
-          <% end %>
         <% end %>
         <%= if @summary.windows_open do %>
           <span

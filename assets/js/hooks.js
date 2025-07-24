@@ -1,3 +1,14 @@
+import {
+  Map as M,
+  TileLayer,
+  LatLng,
+  Control,
+  Marker,
+  Icon,
+  Circle,
+  CircleMarker,
+} from "leaflet";
+
 const LANG = navigator.languages
   ? navigator.languages[0]
   : navigator.language || navigator.userLanguage;
@@ -84,26 +95,16 @@ export const ConfirmGeoFenceDeletion = {
   },
 };
 
-import {
-  Map as M,
-  TileLayer,
-  LatLng,
-  Control,
-  Marker,
-  Icon,
-  Circle,
-  CircleMarker,
-} from "leaflet";
-
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
 const icon = new Icon({
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconAnchor: [12, 40],
-  popupAnchor: [0, -25],
+  iconUrl: "/marker-icon.png",
+  shadowUrl: "/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
 });
+
+L.Icon.Default.imagePath = "/";
 
 const DirectionArrow = CircleMarker.extend({
   initialize(latLng, heading, options) {
@@ -138,25 +139,82 @@ const DirectionArrow = CircleMarker.extend({
   },
 });
 
-function createMap(opts) {
-  const map = new M(opts.elId != null ? `map_${opts.elId}` : "map", opts);
-
-  const osm = new TileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
+export const createMap = (options = {}) => {
+  const map = L.map(options.elId, {
+    zoomControl: options.zoomControl !== false,
+    boxZoom: options.boxZoom !== false,
+    doubleClickZoom: options.doubleClickZoom !== false,
+    keyboard: options.keyboard !== false,
+    scrollWheelZoom: options.scrollWheelZoom !== false,
+    tap: options.tap !== false,
+    dragging: options.dragging !== false,
+    touchZoom: options.touchZoom !== false,
   });
 
-  if (opts.enableHybridLayer) {
-    const hybrid = new TileLayer(
-      "http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}",
-      { maxZoom: 20, subdomains: ["mt0", "mt1", "mt2", "mt3"] },
-    );
-
-    new Control.Layers({ OSM: osm, Hybrid: hybrid }).addTo(map);
-  }
-
-  map.addLayer(osm);
+  L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
+    subdomains: "1234",
+    attribution: "© Amap",
+  }).addTo(map);
 
   return map;
+};
+
+function wgs84ToGcj02(lng, lat) {
+  const a = 6378245.0;
+  const ee = 0.00669342162296594323;
+  
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  
+  const radLat = lat * Math.PI / 180.0;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  
+  dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+  dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+  
+  const mgLat = lat + dLat;
+  const mgLng = lng + dLng;
+  
+  return [mgLng, mgLat];
+}
+
+function transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin(y / 3.0 * Math.PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * Math.PI) + 320 * Math.sin(y * Math.PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin(x / 3.0 * Math.PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * Math.PI) + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+function gcj02ToWgs84(lng, lat) {
+  const a = 6378245.0;
+  const ee = 0.00669342162296594323;
+  
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  
+  const radLat = lat * Math.PI / 180.0;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  
+  dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+  dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+  
+  const mgLat = lat - dLat;
+  const mgLng = lng - dLng;
+  
+  return [mgLng, mgLat];
 }
 
 export const SimpleMap = {
@@ -164,7 +222,7 @@ export const SimpleMap = {
     const $position = document.querySelector(`#position_${this.el.dataset.id}`);
 
     const map = createMap({
-      elId: this.el.dataset.id,
+      elId: `map_${this.el.dataset.id}`,
       zoomControl: !!this.el.dataset.zoom,
       boxZoom: false,
       doubleClickZoom: false,
@@ -177,33 +235,30 @@ export const SimpleMap = {
 
     const isArrow = this.el.dataset.marker === "arrow";
     const [lat, lng, heading] = $position.value.split(",");
-
+    
+    const [gcjLng, gcjLat] = wgs84ToGcj02(parseFloat(lng), parseFloat(lat));
+    
     const marker = isArrow
-      ? new DirectionArrow([lat, lng], heading)
-      : new Marker([lat, lng], { icon });
+      ? new DirectionArrow([gcjLat, gcjLng], heading)
+      : new Marker([gcjLat, gcjLng], { icon });
 
-    map.setView([lat, lng], 17);
     marker.addTo(map);
+    map.setView(marker.getLatLng(), 15);
 
-    map.removeControl(map.zoomControl);
+    const setView = () => {
+      const [lat, lng, heading] = $position.value.split(",");
+      const [gcjLng, gcjLat] = wgs84ToGcj02(parseFloat(lng), parseFloat(lat));
+      marker.setLatLng([gcjLat, gcjLng]);
+      if (isArrow) marker.setHeading(heading);
+      map.setView(marker.getLatLng(), map.getZoom());
+    };
 
-    map.on("mouseover", function (e) {
-      map.addControl(map.zoomControl);
-    });
-    map.on("mouseout", function (e) {
-      map.removeControl(map.zoomControl);
-    });
-
-    if (isArrow) {
-      const setView = () => {
-        const [lat, lng, heading] = $position.value.split(",");
-        marker.setHeading(heading);
-        marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], map.getZoom());
-      };
-
-      $position.addEventListener("change", setView);
-    }
+    this.handleEvent("set_view", setView);
+    this.handleEvent("update_position", setView);
+  },
+  updated() {
+    this.handleEvent("set_view", () => {});
+    this.handleEvent("update_position", () => {});
   },
 };
 
@@ -222,77 +277,110 @@ export const Map = {
       document.querySelector(`input[name='geo_fence[${name}]']`);
 
     const $radius = geoFence("radius");
-    const $latitude = geoFence("latitude");
     const $longitude = geoFence("longitude");
+    const $latitude = geoFence("latitude");
 
-    const location = new LatLng($latitude.value, $longitude.value);
+    const map = createMap({
+      elId: "map",
+      zoomControl: true,
+      boxZoom: true,
+      doubleClickZoom: true,
+      keyboard: true,
+      scrollWheelZoom: true,
+      tap: true,
+      dragging: true,
+      touchZoom: true,
+    });
 
-    const controlOpts = {
-      position: "topleft",
-      cutPolygon: false,
-      drawCircle: false,
+    map.pm.addControls({
+      position: 'topleft',
+      drawCircle: true,
       drawCircleMarker: false,
-      drawMarker: false,
-      drawPolygon: false,
       drawPolyline: false,
       drawRectangle: false,
+      drawPolygon: false,
+      drawMarker: false,
+      editMode: false,
+      dragMode: false,
+      cutPolygon: false,
       removalMode: false,
+    });
+
+    const marker = new Marker([0, 0], { draggable: true });
+    const circle = new Circle([0, 0], { radius: 100 });
+
+    marker.addTo(map);
+    circle.addTo(map);
+
+    const updateRadius = () => {
+      circle.setRadius($radius.value);
     };
 
-    const editOpts = {
-      allowSelfIntersection: false,
-      preventMarkerRemoval: true,
+    const updatePosition = () => {
+      const lat = parseFloat($latitude.value);
+      const lng = parseFloat($longitude.value);
+
+      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0 || 
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        const defaultLat = 39.9042;
+        const defaultLng = 116.4074;
+        
+        $latitude.value = defaultLat;
+        $longitude.value = defaultLng;
+        
+        const [gcjLng, gcjLat] = wgs84ToGcj02(defaultLng, defaultLat);
+        marker.setLatLng([gcjLat, gcjLng]);
+        circle.setLatLng([gcjLat, gcjLng]);
+        map.setView([gcjLat, gcjLng], 13);
+        return;
+      }
+
+      const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat);
+      marker.setLatLng([gcjLat, gcjLng]);
+      circle.setLatLng([gcjLat, gcjLng]);
+      map.setView([gcjLat, gcjLng], 13);
     };
 
-    const map = createMap({ enableHybridLayer: true });
-    map.setView(location, 17, { animate: false });
-    map.pm.setLang(LANG);
-    map.pm.addControls(controlOpts);
-    map.pm.enableGlobalEditMode(editOpts);
+    const updateCircle = () => {
+      updatePosition();
+      updateRadius();
+    };
 
-    const circle = new Circle(location, { radius: $radius.value })
-      .addTo(map)
-      .on("pm:edit", (e) => {
-        const { lat, lng } = e.target.getLatLng();
-        const radius = Math.round(e.target.getRadius());
+    setTimeout(() => {
+      updateCircle();
+    }, 100);
 
-        $radius.value = radius;
-        $latitude.value = lat;
-        $longitude.value = lng;
+    map.on('pm:create', (e) => {
+      const { lat, lng } = e.layer.getLatLng();
+      const radius = e.layer.getRadius();
+      
+      const [wgsLng, wgsLat] = gcj02ToWgs84(lng, lat);
+      
+      $latitude.value = wgsLat.toFixed(6);
+      $longitude.value = wgsLng.toFixed(6);
+      $radius.value = Math.round(radius);
+      
+      marker.setLatLng([lat, lng]);
+      circle.setLatLng([lat, lng]);
+      circle.setRadius(radius);
+      
+      map.removeLayer(e.layer);
+      
+      this.el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
 
-        const mBox = map.getBounds();
-        const cBox = circle.getBounds();
-        const bounds = mBox.contains(cBox) ? mBox : cBox;
-        map.fitBounds(bounds);
-      });
+    marker.on("dragend", (e) => {
+      const { lat, lng } = e.target.getLatLng();
+      const [wgsLng, wgsLat] = gcj02ToWgs84(lng, lat);
+      $latitude.value = wgsLat.toFixed(6);
+      $longitude.value = wgsLng.toFixed(6);
+      circle.setLatLng([lat, lng]);
+      this.el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
 
-    new Control.geocoder({ defaultMarkGeocode: false })
-      .on("markgeocode", (e) => {
-        const { bbox, center } = e.geocode;
-
-        const poly = L.polygon([
-          bbox.getSouthEast(),
-          bbox.getNorthEast(),
-          bbox.getNorthWest(),
-          bbox.getSouthWest(),
-        ]);
-
-        circle.setLatLng(center);
-
-        const lBox = poly.getBounds();
-        const cBox = circle.getBounds();
-        const bounds = cBox.contains(lBox) ? cBox : lBox;
-
-        map.fitBounds(bounds);
-        map.pm.enableGlobalEditMode();
-
-        const { lat, lng } = center;
-        $latitude.value = lat;
-        $longitude.value = lng;
-      })
-      .addTo(map);
-
-    map.fitBounds(circle.getBounds(), { animate: false });
+    $radius.addEventListener("input", updateRadius);
+    $latitude.addEventListener("input", updatePosition);
+    $longitude.addEventListener("input", updatePosition);
   },
 };
 

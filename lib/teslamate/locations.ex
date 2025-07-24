@@ -38,13 +38,100 @@ defmodule TeslaMate.Locations do
     case @geocoder.reverse_lookup(lat, lng, lang) do
       {:ok, %{osm_id: id, osm_type: type} = attrs} ->
         case Repo.get_by(Address, osm_id: id, osm_type: type) do
-          %Address{} = address -> {:ok, address}
-          nil -> create_address(attrs)
+          %Address{} = address -> 
+            {:ok, address}
+          nil -> 
+            case find_address_by_coordinates(lat, lng) do
+              %Address{} = address ->
+                Logger.info("Found nearby address, reusing existing address", 
+                  address_id: address.id,
+                  distance_meters: calculate_distance(lat, lng, address.latitude, address.longitude)
+                )
+                {:ok, address}
+              nil ->
+                case create_address(attrs) do
+                  {:ok, address} ->
+                    {:ok, address}
+                  {:error, changeset} ->
+                    Logger.error("Failed to create new address", errors: inspect(changeset.errors))
+                    {:error, {:database_error, "Failed to create address: #{inspect(changeset.errors)}"}}
+                end
+            end
         end
 
       {:error, reason} ->
+        Logger.error("Locations.find_address failed", reason: reason)
         {:error, reason}
     end
+  end
+
+  # Find nearby address by coordinates (within 100 meters)
+  defp find_address_by_coordinates(lat, lng) do
+    # Convert coordinates to Decimal for comparison
+    lat_decimal = case lat do
+      %Decimal{} -> lat
+      lat when is_float(lat) -> Decimal.new(:erlang.float_to_binary(lat, [:compact]))
+      lat when is_number(lat) -> Decimal.new(to_string(lat))
+      _ -> Decimal.new("0.0")
+    end
+    
+    lng_decimal = case lng do
+      %Decimal{} -> lng
+      lng when is_float(lng) -> Decimal.new(:erlang.float_to_binary(lng, [:compact]))
+      lng when is_number(lng) -> Decimal.new(to_string(lng))
+      _ -> Decimal.new("0.0")
+    end
+    
+    # Calculate coordinate range (approximately 100 meters)
+    lat_range = Decimal.new("0.001")  # approximately 100 meters
+    lng_range = Decimal.new("0.001")  # approximately 100 meters
+    
+    Address
+    |> where([a], 
+      a.latitude >= ^Decimal.sub(lat_decimal, lat_range) and
+      a.latitude <= ^Decimal.add(lat_decimal, lat_range) and
+      a.longitude >= ^Decimal.sub(lng_decimal, lng_range) and
+      a.longitude <= ^Decimal.add(lng_decimal, lng_range)
+    )
+    |> order_by([a], [desc: a.inserted_at])  # prefer the latest address
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  # Calculate distance between two coordinates (in meters)
+  defp calculate_distance(lat1, lng1, lat2, lng2) do
+    # Convert Decimal to float
+    lat1_f = case lat1 do
+      %Decimal{} -> Decimal.to_float(lat1)
+      _ -> lat1
+    end
+    lng1_f = case lng1 do
+      %Decimal{} -> Decimal.to_float(lng1)
+      _ -> lng1
+    end
+    lat2_f = case lat2 do
+      %Decimal{} -> Decimal.to_float(lat2)
+      _ -> lat2
+    end
+    lng2_f = case lng2 do
+      %Decimal{} -> Decimal.to_float(lng2)
+      _ -> lng2
+    end
+    
+    # Use Haversine formula to calculate distance
+    r = 6371000  # Earth radius (meters)
+    lat1_rad = lat1_f * :math.pi / 180
+    lat2_rad = lat2_f * :math.pi / 180
+    delta_lat = (lat2_f - lat1_f) * :math.pi / 180
+    delta_lng = (lng2_f - lng1_f) * :math.pi / 180
+    
+    a = :math.sin(delta_lat / 2) * :math.sin(delta_lat / 2) +
+        :math.cos(lat1_rad) * :math.cos(lat2_rad) *
+        :math.sin(delta_lng / 2) * :math.sin(delta_lng / 2)
+    
+    c = 2 * :math.atan2(:math.sqrt(a), :math.sqrt(1 - a))
+    
+    round(r * c)
   end
 
   def refresh_addresses(lang) do
@@ -93,23 +180,11 @@ defmodule TeslaMate.Locations do
 
               {:ok, _} = update_address(address, attrs)
 
-            {:ok, attrs} ->
-              Logger.warning("""
-              Address does not match! Skipping …
-
-                osm_id: #{id} -> #{attrs[:osm_id]}
-                osm_type: #{type} -> #{attrs[:osm_type]}
-
-              """)
+            _ ->
+              :ignore
           end
-
-          Process.sleep(1500)
       end)
     end)
-  rescue
-    e in MatchError ->
-      Logger.error(Exception.format(:error, e, __STACKTRACE__))
-      {:error, with({:error, reason} <- e.term, do: reason)}
   end
 
   defp merge_addresses(addresses, attrs) do
