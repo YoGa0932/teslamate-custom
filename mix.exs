@@ -101,7 +101,7 @@ defmodule TeslaMate.MixProject do
         include_executables_for: [:unix],
         applications: [runtime_tools: :permanent],
         cookie: "teslamate_cn_cookie",
-        name: "teslamate-cn"
+        name: "teslamate_cn"
       ]
     ]
   end
