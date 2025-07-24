@@ -1,0 +1,16 @@
+## Customize flags given to the VM: http://erlang.org/doc/man/erl.html
+## -mode/-name/-sname/-setcookie are configured via env vars, do not set them here
+
+## Number of dirty schedulers doing IO work (file, sockets)
+##+SDio 5
+
+## Enable kernel poll and a few async threads
+##+K true
+##+A 5
+
+## Tweak GC to run more often
+##-env ERL_FULLSWEEP_AFTER 10
+
+## Configure kernel for TeslaMate CN instance
+-kernel sync_nodes_optional 'teslamate-cn'
+-kernel sync_nodes_timeout 10000 
